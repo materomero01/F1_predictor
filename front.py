@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import date
 import random
 import numpy as np
-
+import os
 # ------------------------------------------------------------
 # CONFIGURACIÓN
 # ------------------------------------------------------------
