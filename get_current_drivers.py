@@ -3,8 +3,12 @@ import fastf1
 import pandas as pd
 from datetime import datetime
 import os
+# Crear carpeta de cache si no existe
+cache_dir = os.path.join(os.path.dirname(__file__), "f1_cache")
+os.makedirs(cache_dir, exist_ok=True)
 
-fastf1.Cache.enable_cache('f1_cache')
+# Inicializar cache
+fastf1.Cache.enable_cache(cache_dir)
 
 def _parse_event_date(cal_df):
     # Intentamos varias columnas posibles que contienen fecha en distintos releases de fastf1
