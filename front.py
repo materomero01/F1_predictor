@@ -11,8 +11,12 @@ import numpy as np
 # CONFIGURACIÓN
 # ------------------------------------------------------------
 st.set_page_config(page_title="F1 Predictor", layout="wide")
-fastf1.Cache.enable_cache("f1_cache")
+# Crear carpeta de cache si no existe
+cache_dir = os.path.join(os.path.dirname(__file__), "f1_cache")
+os.makedirs(cache_dir, exist_ok=True)
 
+# Inicializar cache
+fastf1.Cache.enable_cache(cache_dir)
 # ------------------------------------------------------------
 # FUNCIONES AUXILIARES
 # ------------------------------------------------------------
