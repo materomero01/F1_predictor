@@ -1,0 +1,5 @@
+.venv/
+f1_cache/
+__pycache__/
+v2/data/
+v2/models/
