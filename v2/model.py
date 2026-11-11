@@ -56,6 +56,11 @@ def _fit_dnf(train: pd.DataFrame) -> xgb.XGBClassifier:
     return clf
 
 
+def score(ranker, X: pd.DataFrame, beta: float = C.GRID_BLEND_BETA) -> np.ndarray:
+    """Puntaje del ranker + termino de grilla: el pairwise subpondera la punta (ver config.GRID_BLEND_BETA)."""
+    return ranker.predict(X) - beta * np.log(X["grid_adj"].to_numpy())
+
+
 def _pl_neg_loglik(log_tau: float, races: list[tuple[np.ndarray, np.ndarray]]) -> float:
     tau = np.exp(log_tau)
     total, cnt = 0.0, 0
@@ -79,17 +84,17 @@ def fit_bundle(table: pd.DataFrame, cal_races: int = C.CAL_RACES) -> dict:
         cal_t = set(ts[-cal_races:])
         tr, cal = table[~table["t"].isin(cal_t)], table[table["t"].isin(cal_t)]
         r0 = _fit_ranker(tr)
-        sp = [(r0.predict(g[FEATURE_COLS]), g["pos"].to_numpy()) for _, g in cal.groupby("t")]
+        sp = [(score(r0, g[FEATURE_COLS]), g["pos"].to_numpy()) for _, g in cal.groupby("t")]
         tau = fit_tau(sp)
     else:                                   # pocos datos: tau en-muestra, inflado por seguridad
         r0 = _fit_ranker(table)
-        sp = [(r0.predict(g[FEATURE_COLS]), g["pos"].to_numpy()) for _, g in table.groupby("t")]
+        sp = [(score(r0, g[FEATURE_COLS]), g["pos"].to_numpy()) for _, g in table.groupby("t")]
         tau = fit_tau(sp) * 1.5
     ranker = _fit_ranker(table)             # reentrena con TODO (incluye las carreras de calibración)
     dnf = _fit_dnf(table)
     last = table.sort_values("t").iloc[-1]
     return {
-        "ranker": ranker, "dnf": dnf, "tau": tau, "feature_cols": FEATURE_COLS,
+        "ranker": ranker, "dnf": dnf, "tau": tau, "grid_beta": C.GRID_BLEND_BETA, "feature_cols": FEATURE_COLS,
         "trained_through": f"{int(last['season'])} R{int(last['round'])} {last['race_name']}",
         "n_races": int(table["t"].nunique()), "xgboost": xgb.__version__,
     }
@@ -112,7 +117,7 @@ def simulate(scores: np.ndarray, tau: float, p_dnf: np.ndarray, n_sims: int, rng
 
 def predict_race(bundle: dict, feats: pd.DataFrame, n_sims: int = C.N_SIMS, seed: int = 0) -> pd.DataFrame:
     X = feats[bundle["feature_cols"]]
-    scores = bundle["ranker"].predict(X)
+    scores = score(bundle["ranker"], X, bundle["grid_beta"])
     p_dnf = bundle["dnf"].predict_proba(X)[:, 1]
     pos = simulate(scores, bundle["tau"], p_dnf, n_sims, np.random.default_rng(seed))
     out = feats[["driver_id"]].copy()

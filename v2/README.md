@@ -56,16 +56,18 @@ cada fold solo ve carreras anteriores. `regime_early` = primeras 6 carreras de 2
 
 | Métrica | Modelo | Grilla (baseline) |
 |---|---|---|
-| Spearman | 0.695 | 0.677 |
-| MAE de posición | 3.25 | 3.25 |
-| Podio acertado (de 3) | 2.03 | 2.03 |
-| Ganador acertado (pick = mayor prob.) | 0.44 | 0.60 (pole) |
-| Log-loss del ganador | 1.45 | ln 20 ≈ 3.0 |
-| Brier de podio | 0.068 | 0.125 (tasa base) |
+| Spearman | 0.703 | 0.677 |
+| MAE de posición | 3.17 | 3.25 |
+| Podio acertado (de 3) | 2.02 | 2.03 |
+| Ganador acertado (pick = mayor prob.) | 0.60 | 0.60 (pole) |
+| Log-loss del ganador | 1.29 | ln 20 ≈ 3.0 |
+| Brier de podio | 0.064 | 0.125 (tasa base) |
 
-Por segmento (Spearman): `regular` 0.709 vs grilla 0.687; `regime_early` 0.551 vs grilla 0.571.
+Por segmento (Spearman): `regular` 0.717 vs grilla 0.687; `regime_early` 0.558 vs grilla 0.571.
 
-Lectura honesta: el modelo **iguala o supera apenas a la grilla ordenando**, y su valor está en las **probabilidades**
-(calibradas, ver `TAU_TOP_K`). En acierto del ganador pierde contra la pole (0.44 vs 0.60), y en el arranque de un
-reglamento nuevo no supera a la grilla; con 6 carreras por segmento y un solo cambio de reglamento histórico, esas cifras son ruidosas.
-Experimentos: `sweep_regime.py` (priors de reglamento), `sweep_tau.py` (calibración de tau), `sweep_rank.py` (objetivo del ranker, sin mejora).
+Lectura honesta: ordenando, el modelo mejora un poco a la grilla en carreras normales, y su valor principal está en las
+**probabilidades calibradas** (`TAU_TOP_K`, `GRID_BLEND_BETA`). Para elegir al ganador hoy coincide con la pole (0.60 = 0.60):
+sin el término de grilla era 0.44. En el arranque de un reglamento nuevo no supera a la grilla (Spearman y podio);
+con 6 carreras por segmento y un solo cambio de reglamento histórico, esas cifras son ruidosas.
+Experimentos: `sweep_regime.py` (priors de reglamento), `sweep_tau.py` (tau), `sweep_rank.py` (objetivo del ranker, sin mejora),
+`sweep_gridblend.py` (peso de la grilla: meseta en β 0.8–1.6).

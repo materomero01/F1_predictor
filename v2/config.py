@@ -97,3 +97,5 @@ def power_unit(team: str, season: int):
             "ferrari": "ferrari", "haas": "ferrari", "sauber": "ferrari",
             "alpine": "renault", "mclaren": "renault", "red_bull": "renault",
             "rb": "honda"}.get(team)
+GRID_BLEND_BETA = 1.0   # puntaje += -beta*log(grid_adj). sweep_gridblend.py (desde 2024): beta 0 -> acierto ganador 0.44, logloss 1.45;
+                        # meseta en beta 0.8-1.6 -> 0.59-0.60 y 1.29
