@@ -76,15 +76,29 @@ if key not in st.session_state:
     st.session_state[key] = g.sort_values("grid").reset_index(drop=True)[
         ["grid", "code", "driver_name", "constructor_name", "driver_id", "constructor_id"]]
 
+known = raw.sort_values(["season", "round"]).drop_duplicates("code", keep="last").set_index("code")
+teams = (raw[raw["season"] == raw["season"].max()].drop_duplicates("constructor_id")
+         .set_index("constructor_name")["constructor_id"].to_dict())
 edited = st.data_editor(
     st.session_state[key], hide_index=True, width="stretch", key=key + "_ed",
-    column_order=["grid", "code", "driver_name", "constructor_name"],
-    disabled=["code", "driver_name", "constructor_name"],
-    column_config={"grid": st.column_config.NumberColumn(T("Largada", "Grid"), min_value=1, max_value=len(lineup), step=1)})
-st.caption(T("Editá la columna Largada (1 = pole). Cada número debe aparecer una sola vez; los pilotos con "
-             "penalización o largada desde boxes ponen el puesto real.",
-             "Edit the Grid column (1 = pole). Each number must appear once; for penalties / pit-lane starts "
-             "enter the actual slot."))
+    column_order=["grid", "code", "constructor_name"],
+    column_config={
+        "grid": st.column_config.NumberColumn(T("Largada", "Grid"), min_value=1, max_value=len(lineup), step=1),
+        "code": st.column_config.TextColumn(T("Piloto (código)", "Driver (code)"), max_chars=3),
+        "constructor_name": st.column_config.SelectboxColumn(T("Equipo", "Team"), options=list(teams), required=True)})
+st.caption(T("Editá Largada (1 = pole; cada número una sola vez; penalizados / largada desde boxes ponen el puesto real), "
+             "y si hay suplentes o cambios, el código (3 letras) y el equipo. Un código sin historial se trata como piloto nuevo.",
+             "Edit Grid (1 = pole; each number once; for penalties / pit-lane starts enter the actual slot), and for "
+             "substitutes or swaps, the 3-letter code and team. A code with no history is treated as a new driver."))
+
+
+def resolve(df: pd.DataFrame) -> pd.DataFrame:
+    """Código/equipo editados -> driver_id, constructor_id, nombre."""
+    df = df.assign(code=df["code"].astype(str).str.strip().str.upper())
+    ids = df["code"].map(known["driver_id"]).fillna(df["code"].str.lower())
+    names = df["code"].map(known["driver_name"]).fillna(df["code"])
+    return df.assign(driver_id=ids, driver_name=names, constructor_id=df["constructor_name"].map(teams))
+
 
 # --- 3. predicción ---
 st.subheader(T("3️⃣ Predicción", "3️⃣ Prediction"))
@@ -93,7 +107,10 @@ if st.button(T("🔮 Generar predicción", "🔮 Generate prediction"), type="pr
         st.error(T("La grilla debe ser una permutación de 1..N sin repetidos.",
                    "The grid must be a permutation of 1..N with no repeats."))
         st.stop()
-    entries = edited.assign(grid=edited["grid"].astype(float), is_sprint=int(choice.is_sprint_weekend))
+    if edited["code"].astype(str).str.strip().eq("").any() or edited["code"].astype(str).str.upper().duplicated().any():
+        st.error(T("Cada piloto debe tener un código único.", "Each driver needs a unique code."))
+        st.stop()
+    entries = resolve(edited).assign(grid=edited["grid"].astype(float), is_sprint=int(choice.is_sprint_weekend))
     out = run(raw, bundle, int(choice.season), int(choice.round), choice.circuit_id, entries)
     out = out.assign(**{c: (out[c] * 100).round(1) for c in ("prob_ganar", "prob_podio", "prob_top10", "prob_dnf")})
     out["pos_esperada"] = out["pos_esperada"].round(1)
