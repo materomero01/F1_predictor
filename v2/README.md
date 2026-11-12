@@ -90,3 +90,17 @@ clasificación, se muestrean 300 grillas posibles y la carrera se promedia sobre
 
 La mejora es en **probabilidades** (menos sobreconfianza: antes Verstappen salía con 71% de ganar en Las Vegas, ahora ~20%); el orden de
 carrera no mejora. Con 40 grillas el resultado variaba demasiado entre corridas; con 300 queda en ±1–1.5 puntos.
+
+### Evaluación honesta del ajuste (`sweep_honest.py`)
+Los parámetros (`CAR_WINDOW`, `prior_races`, `GRID_BLEND_BETA`, `TAU_TOP_K`) se habían ajustado mirando todo el backtest. Para medir cuánto
+infla eso, se repitió la **selección usando solo carreras 2024–2025** (16 configuraciones) y se midió en las **20 carreras de 2026**:
+
+| | original (sin ajustar) | elegido solo con 2024–25 |
+|---|---|---|
+| Log-loss del ganador, 2026 | 2.03 | **1.18** |
+| Brier de podio, 2026 | 0.083 | **0.066** |
+| Spearman, 2026 | 0.685 | 0.690 |
+
+La selección sin ver 2026 elige exactamente la misma configuración. La ganancia fuera de muestra es real pero está casi toda en **calibración
+de probabilidades** (tau y término de grilla), no en el orden de las posiciones (+0.005 de Spearman). Límites: la grilla de valores se armó
+viendo todos los datos, 2026 son solo 20 carreras, y esto no cubre el modelo pre-clasificación.
