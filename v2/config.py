@@ -37,14 +37,14 @@ REGIME_CHANGE_SEASONS = {2022, 2026}
 #   shrink = fracción que se tira hacia la media del campo
 #   prior_races = peso del prior en "carreras equivalentes"
 PRIOR_STABLE = {"shrink": 0.15, "prior_races": 4.0}
-# Barrido (sweep_regime.py, primeras 6 carreras de 2022 y 2026): el efecto es chico (Spearman 0.50-0.54,
-# ruido alto con 12 carreras); (0.75, 3.0) con CAR_WINDOW=8 fue el mejor y sus vecinos tambien.
-PRIOR_NEW_REGIME = {"shrink": 0.75, "prior_races": 3.0}
+# sweep_honest.py (etiqueta de abandono corregida, eligiendo con 2024-25 y midiendo en 2026): ventana (5|8) y prior_races (1.5|3.0)
+# empatan en RPS (0.107); se mantienen los valores originales, sin ajustar. Lo que si importa es TAU_TOP_K=3.
+PRIOR_NEW_REGIME = {"shrink": 0.75, "prior_races": 1.5}
 
 # --------------------------------------------------------------------------
 # Features
 # --------------------------------------------------------------------------
-CAR_WINDOW = 8              # carreras recientes de la temporada para medir el auto
+CAR_WINDOW = 5              # carreras recientes de la temporada para medir el auto
 CAR_HALF_LIFE = 3.0         # half-life (en carreras) dentro de esa ventana
 DRIVER_WINDOW = 40          # carreras previas consideradas para el piloto
 DRIVER_HALF_LIFE = 15.0
@@ -56,7 +56,7 @@ DNF_PRIOR_RATE, DNF_PRIOR_N = 0.12, 6.0
 RECENCY_HALF_LIFE_SEASONS = 2.5   # peso de cada carrera al entrenar
 MIN_PRIOR_RACES_TO_TRAIN = 3      # descartar primeras carreras sin historial
 CAL_RACES = 10                    # carreras reservadas para calibrar la temperatura
-TAU_TOP_K = 3      # tau se ajusta con los primeros K puestos (None = todo el campo). Barrido desde 2024: K=None logloss ganador 1.90, K=3 1.45 (el orden del frente es mas predecible que el de la zona media)
+TAU_TOP_K = 3      # tau se ajusta con los primeros K puestos (None = todo el campo). Honesto (sel 2024-25 / test 2026): RPS 0.112->0.107 con K=3 (el orden del frente es mas predecible que el de la zona media)
 N_SIMS = 20000
 RANDOM_STATE = 42
 

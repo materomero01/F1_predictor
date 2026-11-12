@@ -111,7 +111,7 @@ def save_prediction(out: pd.DataFrame, nr: pd.Series, kind: str, bundle: dict, a
     git = lambda *c: subprocess.run(["git", *c], capture_output=True, text=True, cwd=d).stdout.strip()  # noqa: E731
     meta = {"generado": dt.datetime.now().astimezone().isoformat(timespec="seconds"), "tipo": kind,
             "carrera": f"{int(nr['season'])} R{int(nr['round'])} {nr['race_name']} ({nr['date']})",
-            "commit": git("rev-parse", "--short", "HEAD"), "cambios_sin_commitear": bool(git("status", "--porcelain", "--", "..")),
+            "commit": git("rev-parse", "--short", "HEAD"), "cambios_sin_commitear": bool(git("diff", "--stat", "HEAD", "--", "..")),
             "modelo_entrenado_hasta": bundle["trained_through"], "tau": round(bundle["tau"], 4),
             "grid_beta": bundle["grid_beta"], "tau_top_k": C.TAU_TOP_K, "car_window": C.CAR_WINDOW,
             "prior_new_regime": C.PRIOR_NEW_REGIME, "xgboost": bundle["xgboost"],
