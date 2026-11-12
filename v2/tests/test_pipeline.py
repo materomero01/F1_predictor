@@ -45,11 +45,20 @@ def make_synthetic(seed=0, seasons=range(2018, 2027), races=18):
                     "driver_name": d, "constructor_id": t, "constructor_name": t,
                     "grid": q_order.index(d) + 1, "quali_pos": q_order.index(d) + 1,
                     "sprint_pos": float(q_order.index(d) + 1) if sprint else np.nan,
-                    "is_sprint_weekend": int(sprint), "position": float(pos), "position_text": str(pos),
+                    "is_sprint_weekend": int(sprint), "position": float(pos), "position_text": "R" if dnf[d] else str(pos),
                     "points": [25, 18, 15, 12, 10, 8, 6, 4, 2, 1][pos - 1] if pos <= 10 else 0.0,
-                    "laps": 50.0, "status": "Finished" if not dnf[d] else "Engine",
+                    "laps": 50.0, "status": "Retired" if dnf[d] else ("Lapped" if pos > 15 else "Finished"),
                 })
     return pd.DataFrame(rows)
+
+
+def test_dnf_label(raw):
+    """Los doblados ("Lapped") NO son abandonos; los no clasificados ("R") si."""
+    p = prepare_results(raw)
+    assert (p.loc[p["status"] == "Lapped", "dnf"] == 0).all()
+    assert (p.loc[p["status"] == "Retired", "dnf"] == 1).all()
+    assert 0.03 < p["dnf"].mean() < 0.25, p["dnf"].mean()
+    print("✓ etiqueta de abandono (Lapped no es DNF)")
 
 
 def test_no_leakage(raw):
@@ -118,6 +127,7 @@ def test_regime_prior(raw):
 
 if __name__ == "__main__":
     raw = make_synthetic()
+    test_dnf_label(raw)
     test_no_leakage(raw)
     test_train_infer_consistency(raw)
     test_regime_prior(raw)

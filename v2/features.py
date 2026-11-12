@@ -60,8 +60,8 @@ def prepare_results(raw: pd.DataFrame) -> pd.DataFrame:
     df["pos"] = df["position"].fillna(n)
     df["grid_adj"] = df["grid"].where(df["grid"] > 0, n + 1)      # pit lane -> último
     df["quali_adj"] = df["quali_pos"].fillna(df["grid_adj"])
-    st = df["status"].fillna("")
-    df["finished"] = (st == "Finished") | st.str.startswith("+")
+    # "clasificado" = position_text numerico. El texto de status no sirve: desde 2023 los doblados vienen como "Lapped".
+    df["finished"] = df["position_text"].astype(str).str.isdigit()
     df["dnf"] = (~df["finished"]).astype(float)
 
     key = [df["t"], df["team"]]

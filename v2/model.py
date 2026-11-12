@@ -15,6 +15,7 @@ import pandas as pd
 import xgboost as xgb
 from scipy.optimize import minimize_scalar
 from scipy.special import logsumexp
+from sklearn.linear_model import LogisticRegression
 
 import config as C
 from features import FEATURE_COLS
@@ -36,7 +37,8 @@ def race_weights(table: pd.DataFrame) -> pd.Series:
 
 
 def _fit_ranker(train: pd.DataFrame) -> xgb.XGBRanker:
-    train = train.sort_values(["t", "pos"]).reset_index(drop=True)
+    # Solo clasificados: el orden de los que abandonan (o no largan) es azar, y el DNF ya se modela aparte.
+    train = train[train["dnf"] == 0].sort_values(["t", "pos"]).reset_index(drop=True)
     y = (train["n_entries"] - train["pos"] + 1).clip(lower=0).astype(int)
     gw = race_weights(train).groupby(train["t"], sort=True).first().to_numpy()
     model = xgb.XGBRanker(
@@ -47,13 +49,22 @@ def _fit_ranker(train: pd.DataFrame) -> xgb.XGBRanker:
     return model
 
 
-def _fit_dnf(train: pd.DataFrame) -> xgb.XGBClassifier:
-    clf = xgb.XGBClassifier(
-        n_estimators=150, learning_rate=0.05, max_depth=2, min_child_weight=10,
-        subsample=0.8, colsample_bytree=0.8, reg_lambda=5.0, tree_method="hist",
-        random_state=C.RANDOM_STATE)
-    clf.fit(train[FEATURE_COLS], train["dnf"].astype(int), sample_weight=race_weights(train))
-    return clf
+class GridDnf:
+    """P(abandono) = logistica sobre log(largada). Un XGBoost con todas las features no discriminaba mejor
+    (AUC 0.55 vs 0.61 de la largada sola), asi que se usa el modelo simple."""
+
+    def __init__(self, lr: LogisticRegression):
+        self.lr = lr
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        return self.lr.predict_proba(np.log(X["grid_adj"].to_numpy(float)).reshape(-1, 1))
+
+
+def _fit_dnf(train: pd.DataFrame) -> GridDnf:
+    lr = LogisticRegression(C=1.0)
+    lr.fit(np.log(train["grid_adj"].to_numpy(float)).reshape(-1, 1), train["dnf"].astype(int),
+           sample_weight=race_weights(train).to_numpy())
+    return GridDnf(lr)
 
 
 def score(ranker, X: pd.DataFrame, beta: float = C.GRID_BLEND_BETA) -> np.ndarray:
@@ -77,6 +88,18 @@ def fit_tau(scores_pos: list[tuple[np.ndarray, np.ndarray]]) -> float:
     return float(np.exp(res.x))
 
 
+def _cal_pairs(ranker, df: pd.DataFrame) -> list[tuple[np.ndarray, np.ndarray]]:
+    """(puntajes, posiciones) por carrera, solo clasificados, para ajustar tau."""
+    df = df[df["dnf"] == 0]
+    return [(score(ranker, g[FEATURE_COLS]), g["pos"].to_numpy()) for _, g in df.groupby("t")]
+
+
+def _grid_pairs(df: pd.DataFrame) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Igual que _cal_pairs pero con el baseline 'solo grilla' (puntaje = -log grilla)."""
+    df = df[df["dnf"] == 0]
+    return [(-np.log(g["grid_adj"].to_numpy(float)), g["pos"].to_numpy()) for _, g in df.groupby("t")]
+
+
 def fit_bundle(table: pd.DataFrame, cal_races: int = C.CAL_RACES) -> dict:
     table = table.sort_values(["t", "pos"]).reset_index(drop=True)
     ts = sorted(table["t"].unique())
@@ -84,17 +107,17 @@ def fit_bundle(table: pd.DataFrame, cal_races: int = C.CAL_RACES) -> dict:
         cal_t = set(ts[-cal_races:])
         tr, cal = table[~table["t"].isin(cal_t)], table[table["t"].isin(cal_t)]
         r0 = _fit_ranker(tr)
-        sp = [(score(r0, g[FEATURE_COLS]), g["pos"].to_numpy()) for _, g in cal.groupby("t")]
-        tau = fit_tau(sp)
+        tau = fit_tau(_cal_pairs(r0, cal))
+        tau_grid = fit_tau(_grid_pairs(cal))
     else:                                   # pocos datos: tau en-muestra, inflado por seguridad
         r0 = _fit_ranker(table)
-        sp = [(score(r0, g[FEATURE_COLS]), g["pos"].to_numpy()) for _, g in table.groupby("t")]
-        tau = fit_tau(sp) * 1.5
+        tau = fit_tau(_cal_pairs(r0, table)) * 1.5
+        tau_grid = fit_tau(_grid_pairs(table)) * 1.5
     ranker = _fit_ranker(table)             # reentrena con TODO (incluye las carreras de calibración)
     dnf = _fit_dnf(table)
     last = table.sort_values("t").iloc[-1]
     return {
-        "ranker": ranker, "dnf": dnf, "tau": tau, "grid_beta": C.GRID_BLEND_BETA, "feature_cols": FEATURE_COLS,
+        "ranker": ranker, "dnf": dnf, "tau": tau, "tau_grid": tau_grid, "grid_beta": C.GRID_BLEND_BETA, "feature_cols": FEATURE_COLS,
         "trained_through": f"{int(last['season'])} R{int(last['round'])} {last['race_name']}",
         "n_races": int(table["t"].nunique()), "xgboost": xgb.__version__,
     }
@@ -115,7 +138,8 @@ def simulate(scores: np.ndarray, tau: float, p_dnf: np.ndarray, n_sims: int, rng
     return pos
 
 
-def predict_race(bundle: dict, feats: pd.DataFrame, n_sims: int = C.N_SIMS, seed: int = 0) -> pd.DataFrame:
+def predict_race(bundle: dict, feats: pd.DataFrame, n_sims: int = C.N_SIMS, seed: int = 0,
+                 return_pos: bool = False):
     X = feats[bundle["feature_cols"]]
     scores = score(bundle["ranker"], X, bundle["grid_beta"])
     p_dnf = bundle["dnf"].predict_proba(X)[:, 1]
@@ -129,4 +153,5 @@ def predict_race(bundle: dict, feats: pd.DataFrame, n_sims: int = C.N_SIMS, seed
     out["prob_dnf"] = p_dnf
     out["pos_p10"] = np.percentile(pos, 10, axis=0)
     out["pos_p90"] = np.percentile(pos, 90, axis=0)
-    return out.sort_values("pos_esperada").reset_index(drop=True)
+    out = out.sort_values("pos_esperada").reset_index(drop=True)
+    return (out, pos) if return_pos else out

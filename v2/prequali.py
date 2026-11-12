@@ -31,18 +31,14 @@ def _fit_quali_ranker(train: pd.DataFrame) -> xgb.XGBRanker:
 def fit_quali(table: pd.DataFrame, cal_races: int = C.CAL_RACES) -> dict:
     table = table.sort_values(["t", "quali_adj"]).reset_index(drop=True)
     ts = sorted(table["t"].unique())
-    saved, C.TAU_TOP_K = C.TAU_TOP_K, None          # para muestrear una grilla entera hace falta tau de todo el campo
-    try:
-        if len(ts) >= cal_races + 25:
-            cal_t = set(ts[-cal_races:])
-            r0 = _fit_quali_ranker(table[~table["t"].isin(cal_t)])
-            cal = table[table["t"].isin(cal_t)]
-            tau = fit_tau([(r0.predict(g[QUALI_COLS]), g["quali_adj"].to_numpy()) for _, g in cal.groupby("t")])
-        else:
-            r0 = _fit_quali_ranker(table)
-            tau = 1.5 * fit_tau([(r0.predict(g[QUALI_COLS]), g["quali_adj"].to_numpy()) for _, g in table.groupby("t")])
-    finally:
-        C.TAU_TOP_K = saved
+    if len(ts) >= cal_races + 25:
+        cal_t = set(ts[-cal_races:])
+        r0 = _fit_quali_ranker(table[~table["t"].isin(cal_t)])
+        cal = table[table["t"].isin(cal_t)]
+        tau = fit_tau([(r0.predict(g[QUALI_COLS]), g["quali_adj"].to_numpy()) for _, g in cal.groupby("t")])
+    else:
+        r0 = _fit_quali_ranker(table)
+        tau = 1.5 * fit_tau([(r0.predict(g[QUALI_COLS]), g["quali_adj"].to_numpy()) for _, g in table.groupby("t")])
     return {"ranker": _fit_quali_ranker(table), "tau": tau}
 
 
