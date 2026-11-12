@@ -11,6 +11,10 @@ Ejemplos:
     python predict.py --backtest 2026 18
 """
 import argparse
+import datetime as dt
+import json
+import subprocess
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -89,9 +93,39 @@ def show(df: pd.DataFrame):
     print(out.to_string())
 
 
+def _order(arg: str, lineup: pd.DataFrame, name: str) -> pd.Series:
+    """'RUS,ANT,...' (mejor primero) -> posición por piloto, validando que estén todos."""
+    codes = [c.strip().upper() for c in arg.split(",")]
+    missing = set(lineup["code"]) - set(codes)
+    if missing:
+        raise SystemExit(f"Faltan pilotos en --{name}: {sorted(missing)}")
+    return lineup["code"].map({c: i + 1 for i, c in enumerate(codes)}).astype(float)
+
+
+def save_prediction(out: pd.DataFrame, nr: pd.Series, kind: str, bundle: dict, a) -> None:
+    """Guarda la predicción + metadatos (fecha, commit, parámetros) para compararla después sin que quepa duda de que no se tocó."""
+    d = Path(__file__).parent / "predictions"
+    d.mkdir(exist_ok=True)
+    stem = f"{int(nr['season'])}_R{int(nr['round']):02d}_{kind}_{dt.datetime.now().strftime('%Y%m%d_%H%M')}"
+    out.to_csv(d / f"{stem}.csv", index=False)
+    git = lambda *c: subprocess.run(["git", *c], capture_output=True, text=True, cwd=d).stdout.strip()  # noqa: E731
+    meta = {"generado": dt.datetime.now().astimezone().isoformat(timespec="seconds"), "tipo": kind,
+            "carrera": f"{int(nr['season'])} R{int(nr['round'])} {nr['race_name']} ({nr['date']})",
+            "commit": git("rev-parse", "--short", "HEAD"), "cambios_sin_commitear": bool(git("status", "--porcelain", "--", "..")),
+            "modelo_entrenado_hasta": bundle["trained_through"], "tau": round(bundle["tau"], 4),
+            "grid_beta": bundle["grid_beta"], "tau_top_k": C.TAU_TOP_K, "car_window": C.CAR_WINDOW,
+            "prior_new_regime": C.PRIOR_NEW_REGIME, "xgboost": bundle["xgboost"],
+            "args": {"grid": a.grid, "quali": a.quali, "sprint": a.sprint}}
+    (d / f"{stem}.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"\n✓ Guardada: predictions/{stem}.csv (+ .json con metadatos)")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--grid", help="códigos separados por coma, pole primero")
+    ap.add_argument("--grid", help="códigos separados por coma, pole primero (orden de LARGADA, con penalizaciones)")
+    ap.add_argument("--quali", help="orden de CLASIFICACIÓN (códigos); si difiere de --grid, la diferencia es la penalización")
+    ap.add_argument("--save", action="store_true", help="guarda la predicción y sus metadatos en predictions/")
+    ap.add_argument("--sprint", help="resultado del sprint (códigos), solo en fines de semana sprint")
     ap.add_argument("--backtest", nargs=2, type=int, metavar=("SEASON", "ROUND"))
     a = ap.parse_args()
     raw, sched, bundle = load_all()
@@ -115,18 +149,26 @@ def main():
     print(f"Próxima carrera: {nr['season']} R{nr['round']} – {nr['race_name']} ({nr['date']})\n")
     lineup = default_lineup(raw)
     if a.grid:
-        codes = [c.strip().upper() for c in a.grid.split(",")]
-        order = {c: i + 1 for i, c in enumerate(codes)}
-        missing = set(lineup["code"]) - set(order)
-        if missing:
-            raise SystemExit(f"Faltan pilotos en --grid: {sorted(missing)}")
-        entries = lineup.assign(grid=lineup["code"].map(order).astype(float))
+        entries = lineup.assign(grid=_order(a.grid, lineup, "grid"))
+        if a.quali:
+            entries["quali_pos"] = _order(a.quali, lineup, "quali")
+        if a.sprint:
+            entries["sprint_pos"] = _order(a.sprint, lineup, "sprint")
     else:
         print("(PRE-clasificación: promedia sobre grillas posibles; pasá --grid con la real después de clasificar)\n")
-        show(run_prequali(raw, bundle, int(nr["season"]), int(nr["round"]), nr["circuit_id"], lineup))
+        out = run_prequali(raw, bundle, int(nr["season"]), int(nr["round"]), nr["circuit_id"], lineup)
+        show(out)
+        if a.save:
+            save_prediction(out, nr, "prequali", bundle, a)
         return
-    entries["is_sprint"] = int(nr["is_sprint_weekend"])
-    show(run(raw, bundle, int(nr["season"]), int(nr["round"]), nr["circuit_id"], entries))
+    # En entrenamiento is_sprint=1 siempre viene con sprint_pos; sin --sprint se trata como fin de semana normal.
+    entries["is_sprint"] = int(bool(nr["is_sprint_weekend"]) and a.sprint is not None)
+    if nr["is_sprint_weekend"] and not a.sprint:
+        print("(¡fin de semana sprint! pasá --sprint con el resultado del sprint para usar esa información)")
+    out = run(raw, bundle, int(nr["season"]), int(nr["round"]), nr["circuit_id"], entries)
+    show(out)
+    if a.save:
+        save_prediction(out, nr, "postquali", bundle, a)
 
 
 if __name__ == "__main__":

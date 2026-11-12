@@ -30,7 +30,7 @@ def cached(fn, tag):
 
 
 M._fit_ranker, M._fit_dnf = cached(_orig[0], "r"), cached(_orig[1], "d")
-SHOW = ["winner_logloss", "podium_brier", "spearman", "mae"]
+SHOW = ["rps", "gridpl_rps", "pos_logloss", "winner_logloss", "spearman", "mae"]
 rows = []
 for window, prior in itertools.product([5, 8], [1.5, 3.0]):
     C.CAR_WINDOW, C.PRIOR_NEW_REGIME = window, {"shrink": 0.75, "prior_races": prior}
@@ -55,7 +55,7 @@ for window, prior in itertools.product([5, 8], [1.5, 3.0]):
 
 df = pd.DataFrame(rows)
 df.to_csv(C.DATA_DIR / "sweep_honest.csv", index=False)
-best = df.sort_values("sel_winner_logloss").iloc[0]
+best = df.sort_values("sel_rps").iloc[0]      # RPS usa toda la distribucion de posiciones; el ganador es 1 evento/carrera (ruidoso)
 orig = df[(df.window == 5) & (df.prior == 1.5) & (df.beta == 0.0) & (df.topk.isna())].iloc[0]
 cur = df[(df.window == 8) & (df.prior == 3.0) & (df.beta == 1.0) & (df.topk == 3)].iloc[0]
 cols = ["window", "prior", "beta", "topk"] + [f"{p}_{m}" for p in ("sel", "test") for m in SHOW]
