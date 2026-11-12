@@ -16,7 +16,12 @@ from predict import estimate_grid, run
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--last", type=int, default=30)
+ap.add_argument("--beta", type=float, default=None, help="GRID_BLEND_BETA a probar (default: el de config)")
 a = ap.parse_args()
+if a.beta is not None:
+    import model as M
+    C.GRID_BLEND_BETA = a.beta
+    M.score.__defaults__ = (a.beta,)
 
 raw = pd.read_csv(C.RESULTS_CSV)
 T = build_training_table(prepare_results(raw))
