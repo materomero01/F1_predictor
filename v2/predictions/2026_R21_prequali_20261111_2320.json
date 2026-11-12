@@ -1,0 +1,22 @@
+{
+  "generado": "2026-11-11T23:20:41-03:00",
+  "tipo": "prequali",
+  "carrera": "2026 R21 Las Vegas Grand Prix (2026-11-22)",
+  "commit": "8f72703",
+  "cambios_sin_commitear": false,
+  "modelo_entrenado_hasta": "2026 R20 Brazilian Grand Prix",
+  "tau": 0.9445,
+  "grid_beta": 1.0,
+  "tau_top_k": 3,
+  "car_window": 5,
+  "prior_new_regime": {
+    "shrink": 0.75,
+    "prior_races": 1.5
+  },
+  "xgboost": "3.1.1",
+  "args": {
+    "grid": null,
+    "quali": null,
+    "sprint": null
+  }
+}
