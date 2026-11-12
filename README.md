@@ -1,25 +1,4 @@
-# 🏎️ F1 Race Result Predictor
+# F1 Race Result Predictor
 
-Machine Learning project that predicts Formula 1 race results using **FastF1** data and an **XGBoost** model trained on historical driver and team performance.
-
----
-
-## 🚀 Demo
-
-👉 Try the live demo here:  
-**[Streamlit App](https://your-demo-url.streamlit.app/)**   NOT YET
-
----
-
-## ⚙️ Overview
-
-This project combines:
-- **FastF1** → for real Formula 1 session data  
-- **XGBoost** → for race result prediction  
-- **Streamlit** → for a simple interactive interface  
-
-The model estimates:
-- 🏁 Expected finishing position  
-- 🥇 Win probability  
-- 🏆 Podium probability  
-
+- **`v2/`** — versión actual (features causales, ranker + simulación Plackett-Luce, backtest walk-forward). Ver [`v2/README.md`](v2/README.md).
+- **`legacy/`** — v1 original (FastF1 + XGBoost, datos 2021–2025), conservada solo como referencia. Sus scripts asumen que se ejecutan desde `legacy/`.
