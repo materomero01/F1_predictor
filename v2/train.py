@@ -8,6 +8,7 @@ import pandas as pd
 import config as C
 from features import FEATURE_COLS, build_training_table, prepare_results
 from model import fit_bundle
+from prequali import fit_quali
 
 
 def main():
@@ -20,6 +21,7 @@ def main():
     print(f"Tabla de entrenamiento: {len(table)} filas, {table['t'].nunique()} carreras")
 
     bundle = fit_bundle(table)
+    bundle["quali"] = fit_quali(table)        # modelo de clasificacion para la ruta pre-clasificacion
     joblib.dump(bundle, C.MODEL_PATH)
     print(f"\n✓ Modelo guardado en {C.MODEL_PATH}")
     print(f"  Entrenado hasta: {bundle['trained_through']}")

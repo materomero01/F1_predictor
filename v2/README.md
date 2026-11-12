@@ -76,3 +76,17 @@ Experimentos: `sweep_regime.py` (priors de reglamento), `sweep_tau.py` (tau), `s
 Spearman 0.600 (grilla estimada sola: 0.586; con grilla real el modelo llega a ~0.70) · ganador acertado 0.33 (igual que la grilla estimada) ·
 log-loss del ganador 2.44 · Brier de podio 0.095 (tasa base 0.121). Útil como adelanto probabilístico, pero **mucho menos preciso
 que después de clasificar**: conviene volver a predecir con `--grid` cuando haya clasificación.
+
+### Modelo de clasificación + incertidumbre de grilla (`prequali.py`, `eval_prequali.py`)
+Antes de clasificar, `predict.py` y el front (modo "Estimada") ya no tratan una grilla estimada como cierta: un ranker propio predice la
+clasificación, se muestrean 300 grillas posibles y la carrera se promedia sobre ellas. Walk-forward, 68 carreras desde 2024:
+
+| | heurística (grilla única) | modelo + muestreo |
+|---|---|---|
+| Spearman del orden de clasificación | 0.721 | 0.739 |
+| Log-loss del ganador | 2.15 | 2.06 |
+| Brier de podio | 0.094 | 0.087 |
+| Spearman de carrera | 0.612 | 0.601 |
+
+La mejora es en **probabilidades** (menos sobreconfianza: antes Verstappen salía con 71% de ganar en Las Vegas, ahora ~20%); el orden de
+carrera no mejora. Con 40 grillas el resultado variaba demasiado entre corridas; con 300 queda en ±1–1.5 puntos.

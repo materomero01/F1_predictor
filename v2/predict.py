@@ -19,6 +19,7 @@ import pandas as pd
 import config as C
 from features import FeatureBuilder, build_inference_features, canonical_team, prepare_results
 from model import predict_race
+from prequali import predict_prequali
 
 
 def load_all():
@@ -66,8 +67,19 @@ def run(raw, bundle, season, rnd, circuit_id, entries) -> pd.DataFrame:
     return pred.merge(meta, on="driver_id", how="left")
 
 
+def run_prequali(raw, bundle, season, rnd, circuit_id, lineup) -> pd.DataFrame:
+    """Antes de clasificar: modelo de clasificación + carrera promediada sobre grillas muestreadas."""
+    prepared = prepare_results(raw)
+    e = lineup.copy()
+    e["grid"] = np.arange(1, len(e) + 1, dtype=float)       # placeholder, no entra en car/drv (ver estimate_grid)
+    feats = build_inference_features(prepared, season, rnd, circuit_id, e)
+    pred = predict_prequali(bundle, bundle["quali"], feats)
+    meta = lineup[["driver_id"] + [c for c in ("code", "constructor_name") if c in lineup]]
+    return pred.merge(meta, on="driver_id", how="left")
+
+
 def show(df: pd.DataFrame):
-    cols = [c for c in ("code", "constructor_name", "grid", "pos_esperada", "pos_p10", "pos_p90",
+    cols = [c for c in ("code", "constructor_name", "grid", "grid_esperada", "pos_esperada", "pos_p10", "pos_p90",
                         "prob_ganar", "prob_podio", "prob_top10", "prob_dnf", "pos_real") if c in df]
     out = df[cols].copy()
     for c in ("prob_ganar", "prob_podio", "prob_top10", "prob_dnf"):
@@ -110,8 +122,9 @@ def main():
             raise SystemExit(f"Faltan pilotos en --grid: {sorted(missing)}")
         entries = lineup.assign(grid=lineup["code"].map(order).astype(float))
     else:
-        entries = estimate_grid(raw, int(nr["season"]), int(nr["round"]), nr["circuit_id"], lineup)
-        print("(grilla ESTIMADA: pasá --grid con la real después de clasificar)\n")
+        print("(PRE-clasificación: promedia sobre grillas posibles; pasá --grid con la real después de clasificar)\n")
+        show(run_prequali(raw, bundle, int(nr["season"]), int(nr["round"]), nr["circuit_id"], lineup))
+        return
     entries["is_sprint"] = int(nr["is_sprint_weekend"])
     show(run(raw, bundle, int(nr["season"]), int(nr["round"]), nr["circuit_id"], entries))
 

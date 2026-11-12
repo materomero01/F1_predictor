@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 import config as C
-from predict import default_lineup, estimate_grid, next_race, run
+from predict import default_lineup, estimate_grid, next_race, run, run_prequali
 
 st.set_page_config(page_title="F1 Predictor v2", layout="wide")
 
@@ -103,7 +103,8 @@ def resolve(df: pd.DataFrame) -> pd.DataFrame:
 # --- 3. predicción ---
 st.subheader(T("3️⃣ Predicción", "3️⃣ Prediction"))
 if st.button(T("🔮 Generar predicción", "🔮 Generate prediction"), type="primary"):
-    if sorted(edited["grid"].astype(int)) != list(range(1, len(edited) + 1)):
+    pre = mode.startswith("Estim")
+    if not pre and sorted(edited["grid"].astype(int)) != list(range(1, len(edited) + 1)):
         st.error(T("La grilla debe ser una permutación de 1..N sin repetidos.",
                    "The grid must be a permutation of 1..N with no repeats."))
         st.stop()
@@ -111,15 +112,25 @@ if st.button(T("🔮 Generar predicción", "🔮 Generate prediction"), type="pr
         st.error(T("Cada piloto debe tener un código único.", "Each driver needs a unique code."))
         st.stop()
     entries = resolve(edited).assign(grid=edited["grid"].astype(float), is_sprint=int(choice.is_sprint_weekend))
-    out = run(raw, bundle, int(choice.season), int(choice.round), choice.circuit_id, entries)
+    if pre:   # sin clasificación: se promedia sobre grillas posibles, la columna Largada se ignora
+        out = run_prequali(raw, bundle, int(choice.season), int(choice.round), choice.circuit_id,
+                           entries[["driver_id", "code", "driver_name", "constructor_id", "constructor_name"]])
+        out = out.assign(grid=out["grid_esperada"].round(1))
+    else:
+        out = run(raw, bundle, int(choice.season), int(choice.round), choice.circuit_id, entries)
     out = out.assign(**{c: (out[c] * 100).round(1) for c in ("prob_ganar", "prob_podio", "prob_top10", "prob_dnf")})
     out["pos_esperada"] = out["pos_esperada"].round(1)
     out.index = out.index + 1
-    names = {"code": T("Piloto", "Driver"), "constructor_name": T("Equipo", "Team"), "grid": T("Largada", "Grid"),
+    names = {"code": T("Piloto", "Driver"), "constructor_name": T("Equipo", "Team"), "grid": T("Largada (esp.)" if pre else "Largada", "Grid (exp.)" if pre else "Grid"),
              "pos_esperada": T("Pos. esperada", "Exp. pos"), "pos_p10": "P10", "pos_p90": "P90",
              "prob_ganar": T("Ganar %", "Win %"), "prob_podio": T("Podio %", "Podium %"),
              "prob_top10": T("Puntos %", "Points %"), "prob_dnf": T("Abandono %", "DNF %")}
     st.dataframe(out[list(names)].rename(columns=names), width="stretch")
+    if pre:
+        st.info(T("Predicción PRE-clasificación: promedia sobre muchas grillas posibles (la columna Largada del paso 2 no se usa). "
+                  "Es bastante menos precisa que con la clasificación real: cargala en modo Manual cuando la tengas.",
+                  "PRE-qualifying prediction: averaged over many possible grids (the Grid column in step 2 is not used). "
+                  "Much less precise than with the real qualifying: enter it in Manual mode once available."))
     st.caption(T("P10/P90: rango de posiciones en el 80% de las simulaciones. "
                  "Las probabilidades de ganar suman 100% (simulación Plackett-Luce).",
                  "P10/P90: finishing-position range in 80% of simulations. "
