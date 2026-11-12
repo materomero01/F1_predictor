@@ -71,3 +71,8 @@ sin el término de grilla era 0.44. En el arranque de un reglamento nuevo no sup
 con 6 carreras por segmento y un solo cambio de reglamento histórico, esas cifras son ruidosas.
 Experimentos: `sweep_regime.py` (priors de reglamento), `sweep_tau.py` (tau), `sweep_rank.py` (objetivo del ranker, sin mejora),
 `sweep_gridblend.py` (peso de la grilla: meseta en β 0.8–1.6).
+
+### Pre-clasificación (grilla estimada, `backtest_pre_quali.py`, últimas 30 carreras)
+Spearman 0.600 (grilla estimada sola: 0.586; con grilla real el modelo llega a ~0.70) · ganador acertado 0.33 (igual que la grilla estimada) ·
+log-loss del ganador 2.44 · Brier de podio 0.095 (tasa base 0.121). Útil como adelanto probabilístico, pero **mucho menos preciso
+que después de clasificar**: conviene volver a predecir con `--grid` cuando haya clasificación.
